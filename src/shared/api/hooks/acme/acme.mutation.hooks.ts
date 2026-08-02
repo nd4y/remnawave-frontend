@@ -5,8 +5,10 @@ import {
     CreateAcmeCredentialCommand,
     DeleteAcmeCertificateCommand,
     DeleteAcmeCredentialCommand,
+    ImportAcmeCertificateCommand,
     IssueAcmeCertificateCommand,
     PublishAcmePersistRecordCommand,
+    ReimportAcmeCertificateCommand,
     TestAcmeCredentialCommand,
     UpdateAcmeCertificateCommand,
     UpdateAcmeCredentialCommand
@@ -99,6 +101,29 @@ export const useDeleteAcmeCertificate = createMutationHook({
     rMutationParams: {
         onError: notifyError('Delete certificate'),
         onSuccess: notifySuccess('Certificate deleted successfully')
+    }
+})
+
+export const useImportAcmeCertificate = createMutationHook({
+    bodySchema: ImportAcmeCertificateCommand.RequestBodySchema,
+    endpoint: ImportAcmeCertificateCommand.TSQ_url,
+    requestMethod: ImportAcmeCertificateCommand.endpointDetails.REQUEST_METHOD,
+    responseSchema: ImportAcmeCertificateCommand.ResponseSchema,
+    rMutationParams: {
+        onError: notifyError('Import certificate'),
+        onSuccess: notifySuccess('Certificate imported')
+    }
+})
+
+export const useReimportAcmeCertificate = createMutationHook({
+    bodySchema: ReimportAcmeCertificateCommand.RequestBodySchema,
+    endpoint: ReimportAcmeCertificateCommand.TSQ_url,
+    requestMethod: ReimportAcmeCertificateCommand.endpointDetails.REQUEST_METHOD,
+    responseSchema: ReimportAcmeCertificateCommand.ResponseSchema,
+    routeParamsSchema: ReimportAcmeCertificateCommand.RequestParamSchema,
+    rMutationParams: {
+        onError: notifyError('Replace certificate material'),
+        onSuccess: notifySuccess('Certificate replaced, bound nodes restarted')
     }
 })
 

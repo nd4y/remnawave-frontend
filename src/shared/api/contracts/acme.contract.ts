@@ -29,6 +29,14 @@ export type TAcmeChallengeType = (typeof ACME_CHALLENGE_TYPE)[keyof typeof ACME_
 
 export const ACME_KEY_TYPES = ['ECDSA_P256', 'ECDSA_P384', 'RSA_2048', 'RSA_4096'] as const
 
+export const ACME_CERTIFICATE_SOURCE = {
+    ACME: 'ACME',
+    IMPORTED: 'IMPORTED'
+} as const
+
+export type TAcmeCertificateSource =
+    (typeof ACME_CERTIFICATE_SOURCE)[keyof typeof ACME_CERTIFICATE_SOURCE]
+
 export const ACME_CERTIFICATE_STATUS = {
     ACTIVE: 'ACTIVE',
     AWAITING_DNS: 'AWAITING_DNS',
@@ -89,10 +97,10 @@ export const AcmeCertificateSchema = z.object({
     createdAt: dateFromString,
     credentialName: z.nullable(z.string()),
     credentialUuid: z.nullable(z.uuid()),
-    directoryUrl: z.string(),
+    directoryUrl: z.nullable(z.string()),
     domains: z.array(z.string()),
     eabKid: z.nullable(z.string()),
-    email: z.string(),
+    email: z.nullable(z.string()),
     expiresAt: z.nullable(dateFromString),
     failCount: z.number().int(),
     fingerprint: z.nullable(z.string()),
@@ -104,6 +112,7 @@ export const AcmeCertificateSchema = z.object({
     nextRetryAt: z.nullable(dateFromString),
     nodes: z.array(AcmeCertificateNodeSchema),
     renewBeforeDays: z.number().int(),
+    source: z.enum([ACME_CERTIFICATE_SOURCE.ACME, ACME_CERTIFICATE_SOURCE.IMPORTED]),
     status: z.enum([
         ACME_CERTIFICATE_STATUS.PENDING,
         ACME_CERTIFICATE_STATUS.AWAITING_DNS,
@@ -298,6 +307,51 @@ export namespace IssueAcmeCertificateCommand {
         response: z.object({ isQueued: z.boolean() })
     })
 
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+/**
+ * PEM as text on both sides: a file picked in the browser is read into the same
+ * field, so uploading a file and pasting a certificate hit one endpoint.
+ */
+const pemMaterial = {
+    fullchainPem: z.string().min(1),
+    privateKeyPem: z.string().min(1)
+}
+
+export namespace ImportAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates/import`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestBodySchema = z.object({
+        ...pemMaterial,
+        isEnabled: z.optional(z.boolean()),
+        name: z.string().min(2).max(40),
+        nodes: z.optional(
+            z.array(
+                z.object({
+                    inboundTags: z.array(z.string()),
+                    nodeUuid: z.uuid()
+                })
+            )
+        )
+    })
+
+    export const ResponseSchema = z.object({ response: AcmeCertificateSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace ReimportAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid/import`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const RequestBodySchema = z.object(pemMaterial)
+    export const ResponseSchema = z.object({ response: AcmeCertificateSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
     export type Response = z.infer<typeof ResponseSchema>
 }
 

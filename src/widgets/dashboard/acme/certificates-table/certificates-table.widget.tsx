@@ -12,11 +12,20 @@ import {
 import { modals } from '@mantine/modals'
 import { GetNodesCommand } from '@remnawave/backend-contract'
 import { useState } from 'react'
-import { TbCertificate, TbListDetails, TbPencil, TbPlus, TbRefresh, TbTrash } from 'react-icons/tb'
+import {
+    TbCertificate,
+    TbFileUpload,
+    TbListDetails,
+    TbPencil,
+    TbPlus,
+    TbRefresh,
+    TbTrash
+} from 'react-icons/tb'
 import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
 import {
+    ACME_CERTIFICATE_SOURCE,
     ACME_CERTIFICATE_STATUS,
     AcmeCertificateSchema,
     AcmeCredentialSchema,
@@ -26,6 +35,7 @@ import { QueryKeys, useDeleteAcmeCertificate, useIssueAcmeCertificate } from '@s
 
 import { AcmeCertificateDetailsDrawerWidget } from '../certificate-details-drawer/certificate-details-drawer.widget'
 import { AcmeCertificateModalWidget } from '../certificate-modal/certificate-modal.widget'
+import { AcmeImportCertificateModalWidget } from '../import-certificate-modal/import-certificate-modal.widget'
 
 type Certificate = z.infer<typeof AcmeCertificateSchema>
 type Credential = z.infer<typeof AcmeCredentialSchema>
@@ -59,6 +69,8 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
     const [editing, setEditing] = useState<Certificate | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [details, setDetails] = useState<Certificate | null>(null)
+    const [replacing, setReplacing] = useState<Certificate | null>(null)
+    const [isImportOpen, setIsImportOpen] = useState(false)
 
     const issueCertificate = useIssueAcmeCertificate({})
     const deleteCertificate = useDeleteAcmeCertificate({})
@@ -92,16 +104,29 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
                     to.
                 </Text>
 
-                <Button
-                    disabled={credentials.length === 0}
-                    leftSection={<TbPlus size={16} />}
-                    onClick={() => {
-                        setEditing(null)
-                        setIsModalOpen(true)
-                    }}
-                >
-                    Add certificate
-                </Button>
+                <Group gap="xs">
+                    <Button
+                        leftSection={<TbFileUpload size={16} />}
+                        onClick={() => {
+                            setReplacing(null)
+                            setIsImportOpen(true)
+                        }}
+                        variant="default"
+                    >
+                        Import
+                    </Button>
+
+                    <Button
+                        disabled={credentials.length === 0}
+                        leftSection={<TbPlus size={16} />}
+                        onClick={() => {
+                            setEditing(null)
+                            setIsModalOpen(true)
+                        }}
+                    >
+                        Add certificate
+                    </Button>
+                </Group>
             </Group>
 
             {credentials.length === 0 && (
@@ -143,6 +168,14 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
                                         <Group gap="xs">
                                             <TbCertificate size={16} />
                                             <Text>{certificate.name}</Text>
+                                            {certificate.source ===
+                                                ACME_CERTIFICATE_SOURCE.IMPORTED && (
+                                                <Tooltip label="Uploaded material, never renewed by the panel">
+                                                    <Badge color="grape" size="xs" variant="light">
+                                                        imported
+                                                    </Badge>
+                                                </Tooltip>
+                                            )}
                                             {!certificate.isEnabled && (
                                                 <Badge color="gray" size="xs" variant="light">
                                                     disabled
@@ -211,20 +244,35 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
 
                                     <Table.Td>
                                         <Group gap="xs" justify="flex-end">
-                                            <Tooltip label="Issue or renew now">
-                                                <ActionIcon
-                                                    loading={issueCertificate.isPending}
-                                                    onClick={async () => {
-                                                        await issueCertificate.mutateAsync({
-                                                            route: { uuid: certificate.uuid }
-                                                        })
-                                                        await invalidate()
-                                                    }}
-                                                    variant="subtle"
-                                                >
-                                                    <TbRefresh size={18} />
-                                                </ActionIcon>
-                                            </Tooltip>
+                                            {certificate.source ===
+                                            ACME_CERTIFICATE_SOURCE.IMPORTED ? (
+                                                <Tooltip label="Upload new material">
+                                                    <ActionIcon
+                                                        onClick={() => {
+                                                            setReplacing(certificate)
+                                                            setIsImportOpen(true)
+                                                        }}
+                                                        variant="subtle"
+                                                    >
+                                                        <TbFileUpload size={18} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                            ) : (
+                                                <Tooltip label="Issue or renew now">
+                                                    <ActionIcon
+                                                        loading={issueCertificate.isPending}
+                                                        onClick={async () => {
+                                                            await issueCertificate.mutateAsync({
+                                                                route: { uuid: certificate.uuid }
+                                                            })
+                                                            await invalidate()
+                                                        }}
+                                                        variant="subtle"
+                                                    >
+                                                        <TbRefresh size={18} />
+                                                    </ActionIcon>
+                                                </Tooltip>
+                                            )}
 
                                             <Tooltip label="Log and authorization record">
                                                 <ActionIcon
@@ -235,15 +283,18 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
                                                 </ActionIcon>
                                             </Tooltip>
 
-                                            <ActionIcon
-                                                onClick={() => {
-                                                    setEditing(certificate)
-                                                    setIsModalOpen(true)
-                                                }}
-                                                variant="subtle"
-                                            >
-                                                <TbPencil size={18} />
-                                            </ActionIcon>
+                                            {certificate.source ===
+                                                ACME_CERTIFICATE_SOURCE.ACME && (
+                                                <ActionIcon
+                                                    onClick={() => {
+                                                        setEditing(certificate)
+                                                        setIsModalOpen(true)
+                                                    }}
+                                                    variant="subtle"
+                                                >
+                                                    <TbPencil size={18} />
+                                                </ActionIcon>
+                                            )}
 
                                             <ActionIcon
                                                 color="red"
@@ -267,6 +318,13 @@ export const AcmeCertificatesTableWidget = (props: IProps) => {
                 nodes={nodes}
                 onClose={() => setIsModalOpen(false)}
                 opened={isModalOpen}
+            />
+
+            <AcmeImportCertificateModalWidget
+                certificate={replacing}
+                nodes={nodes}
+                onClose={() => setIsImportOpen(false)}
+                opened={isImportOpen}
             />
 
             <AcmeCertificateDetailsDrawerWidget
