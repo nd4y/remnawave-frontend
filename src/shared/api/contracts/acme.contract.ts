@@ -1,0 +1,337 @@
+import { z } from 'zod'
+
+/**
+ * Contract for the ACME endpoints.
+ *
+ * It lives here instead of in @remnawave/backend-contract because the panel
+ * fork adds these endpoints and the published package does not know about them.
+ * Keep it in sync with libs/contract/{models,commands}/acme in the backend fork;
+ * when the feature goes upstream, this file is deleted and the package takes
+ * over.
+ */
+
+const ROOT = '/api/acme'
+
+export const ACME_PROVIDER = {
+    ACME_PROXY: 'ACME_PROXY',
+    CLOUDFLARE: 'CLOUDFLARE',
+    MANUAL: 'MANUAL'
+} as const
+
+export type TAcmeProvider = (typeof ACME_PROVIDER)[keyof typeof ACME_PROVIDER]
+
+export const ACME_CHALLENGE_TYPE = {
+    DNS_01: 'DNS_01',
+    DNS_PERSIST_01: 'DNS_PERSIST_01'
+} as const
+
+export type TAcmeChallengeType = (typeof ACME_CHALLENGE_TYPE)[keyof typeof ACME_CHALLENGE_TYPE]
+
+export const ACME_KEY_TYPES = ['ECDSA_P256', 'ECDSA_P384', 'RSA_2048', 'RSA_4096'] as const
+
+export const ACME_CERTIFICATE_STATUS = {
+    ACTIVE: 'ACTIVE',
+    AWAITING_DNS: 'AWAITING_DNS',
+    ERROR: 'ERROR',
+    ISSUING: 'ISSUING',
+    PENDING: 'PENDING'
+} as const
+
+export type TAcmeCertificateStatus =
+    (typeof ACME_CERTIFICATE_STATUS)[keyof typeof ACME_CERTIFICATE_STATUS]
+
+export const ACME_DIRECTORY = {
+    BUYPASS: 'https://api.buypass.com/acme/directory',
+    BUYPASS_STAGING: 'https://api.test4.buypass.no/acme/directory',
+    GOOGLE: 'https://dv.acme-v02.api.pki.goog/directory',
+    GOOGLE_STAGING: 'https://dv.acme-v02.test-api.pki.goog/directory',
+    LETSENCRYPT: 'https://acme-v02.api.letsencrypt.org/directory',
+    LETSENCRYPT_STAGING: 'https://acme-staging-v02.api.letsencrypt.org/directory',
+    ZEROSSL: 'https://acme.zerossl.com/v2/DV90'
+} as const
+
+/**
+ * Presets offered in the certificate form. Staging endpoints are first-class
+ * here: they are where a new name should be rehearsed, and — until Let's Encrypt
+ * enables dns-persist-01 in production — the only place that challenge works.
+ */
+export const ACME_DIRECTORY_PRESETS = [
+    { isStaging: true, name: "Let's Encrypt (staging)", url: ACME_DIRECTORY.LETSENCRYPT_STAGING },
+    { isStaging: false, name: "Let's Encrypt", url: ACME_DIRECTORY.LETSENCRYPT },
+    { isStaging: true, name: 'Buypass Go (staging)', url: ACME_DIRECTORY.BUYPASS_STAGING },
+    { isStaging: false, name: 'Buypass Go', url: ACME_DIRECTORY.BUYPASS },
+    { isStaging: true, name: 'Google Trust Services (staging)', url: ACME_DIRECTORY.GOOGLE_STAGING },
+    { isStaging: false, name: 'Google Trust Services', url: ACME_DIRECTORY.GOOGLE },
+    { isStaging: false, name: 'ZeroSSL', url: ACME_DIRECTORY.ZEROSSL }
+] as const
+
+const dateFromString = z.iso.datetime().transform((value) => new Date(value))
+
+export const AcmeCredentialSchema = z.object({
+    baseUrl: z.nullable(z.string()),
+    certificatesCount: z.number().int(),
+    createdAt: dateFromString,
+    hasSecret: z.boolean(),
+    name: z.string(),
+    provider: z.enum([ACME_PROVIDER.ACME_PROXY, ACME_PROVIDER.CLOUDFLARE, ACME_PROVIDER.MANUAL]),
+    updatedAt: dateFromString,
+    uuid: z.uuid()
+})
+
+export const AcmeCertificateNodeSchema = z.object({
+    inboundTags: z.array(z.string()),
+    nodeName: z.nullable(z.string()),
+    nodeUuid: z.uuid()
+})
+
+export const AcmeCertificateSchema = z.object({
+    challengeType: z.enum([ACME_CHALLENGE_TYPE.DNS_01, ACME_CHALLENGE_TYPE.DNS_PERSIST_01]),
+    createdAt: dateFromString,
+    credentialName: z.nullable(z.string()),
+    credentialUuid: z.nullable(z.uuid()),
+    directoryUrl: z.string(),
+    domains: z.array(z.string()),
+    eabKid: z.nullable(z.string()),
+    email: z.string(),
+    expiresAt: z.nullable(dateFromString),
+    failCount: z.number().int(),
+    fingerprint: z.nullable(z.string()),
+    isEnabled: z.boolean(),
+    issuedAt: z.nullable(dateFromString),
+    keyType: z.enum(ACME_KEY_TYPES),
+    lastError: z.nullable(z.string()),
+    name: z.string(),
+    nextRetryAt: z.nullable(dateFromString),
+    nodes: z.array(AcmeCertificateNodeSchema),
+    renewBeforeDays: z.number().int(),
+    status: z.enum([
+        ACME_CERTIFICATE_STATUS.PENDING,
+        ACME_CERTIFICATE_STATUS.AWAITING_DNS,
+        ACME_CERTIFICATE_STATUS.ISSUING,
+        ACME_CERTIFICATE_STATUS.ACTIVE,
+        ACME_CERTIFICATE_STATUS.ERROR
+    ]),
+    updatedAt: dateFromString,
+    uuid: z.uuid()
+})
+
+export const AcmeEventSchema = z.object({
+    certificateUuid: z.nullable(z.uuid()),
+    createdAt: dateFromString,
+    id: z.number().int(),
+    level: z.enum(['INFO', 'ERROR']),
+    message: z.string()
+})
+
+export const AcmePersistRecordSchema = z.object({
+    canPublish: z.boolean(),
+    isPublished: z.boolean(),
+    name: z.string(),
+    value: z.string()
+})
+
+export const AcmeCredentialTestSchema = z.object({
+    allow: z.array(z.string()),
+    isOk: z.boolean(),
+    message: z.string(),
+    zones: z.array(z.string())
+})
+
+const uuidParam = z.object({ uuid: z.uuid() })
+
+export namespace GetAcmeCredentialsCommand {
+    export const TSQ_url = `${ROOT}/credentials`
+
+    export const ResponseSchema = z.object({
+        response: z.object({
+            credentials: z.array(AcmeCredentialSchema),
+            total: z.number()
+        })
+    })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace CreateAcmeCredentialCommand {
+    export const TSQ_url = `${ROOT}/credentials`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestBodySchema = z.object({
+        apiToken: z.optional(z.string().min(1)),
+        baseUrl: z.optional(z.url()),
+        name: z.string().min(2).max(40),
+        provider: z.enum([
+            ACME_PROVIDER.ACME_PROXY,
+            ACME_PROVIDER.CLOUDFLARE,
+            ACME_PROVIDER.MANUAL
+        ]),
+        token: z.optional(z.string().min(1))
+    })
+
+    export const ResponseSchema = z.object({ response: AcmeCredentialSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace UpdateAcmeCredentialCommand {
+    export const TSQ_url = `${ROOT}/credentials`
+    export const endpointDetails = { REQUEST_METHOD: 'patch' } as const
+
+    export const RequestBodySchema = z.object({
+        apiToken: z.optional(z.string().min(1)),
+        baseUrl: z.optional(z.url()),
+        name: z.optional(z.string().min(2).max(40)),
+        token: z.optional(z.string().min(1)),
+        uuid: z.uuid()
+    })
+
+    export const ResponseSchema = z.object({ response: AcmeCredentialSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace DeleteAcmeCredentialCommand {
+    export const TSQ_url = `${ROOT}/credentials/:uuid`
+    export const endpointDetails = { REQUEST_METHOD: 'delete' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({
+        response: z.object({ isDeleted: z.boolean() })
+    })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace TestAcmeCredentialCommand {
+    export const TSQ_url = `${ROOT}/credentials/:uuid/test`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({ response: AcmeCredentialTestSchema })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace GetAcmeCertificatesCommand {
+    export const TSQ_url = `${ROOT}/certificates`
+
+    export const ResponseSchema = z.object({
+        response: z.object({
+            certificates: z.array(AcmeCertificateSchema),
+            total: z.number()
+        })
+    })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace CreateAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestBodySchema = z.object({
+        challengeType: z.optional(
+            z.enum([ACME_CHALLENGE_TYPE.DNS_01, ACME_CHALLENGE_TYPE.DNS_PERSIST_01])
+        ),
+        credentialUuid: z.uuid(),
+        directoryUrl: z.optional(z.url()),
+        domains: z.array(z.string()).min(1),
+        eabHmacKey: z.optional(z.string().min(1)),
+        eabKid: z.optional(z.string().min(1)),
+        email: z.email(),
+        isEnabled: z.optional(z.boolean()),
+        keyType: z.optional(z.enum(ACME_KEY_TYPES)),
+        name: z.string().min(2).max(40),
+        nodes: z.optional(
+            z.array(
+                z.object({
+                    inboundTags: z.array(z.string()),
+                    nodeUuid: z.uuid()
+                })
+            )
+        ),
+        renewBeforeDays: z.optional(z.number().int().min(1).max(85))
+    })
+
+    export const ResponseSchema = z.object({ response: AcmeCertificateSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace UpdateAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates`
+    export const endpointDetails = { REQUEST_METHOD: 'patch' } as const
+
+    export const RequestBodySchema = CreateAcmeCertificateCommand.RequestBodySchema.partial().extend(
+        {
+            uuid: z.uuid()
+        }
+    )
+
+    export const ResponseSchema = z.object({ response: AcmeCertificateSchema })
+
+    export type RequestBody = z.infer<typeof RequestBodySchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace DeleteAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid`
+    export const endpointDetails = { REQUEST_METHOD: 'delete' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({
+        response: z.object({ isDeleted: z.boolean() })
+    })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace IssueAcmeCertificateCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid/issue`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({
+        response: z.object({ isQueued: z.boolean() })
+    })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace GetAcmeCertificateEventsCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid/events`
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({
+        response: z.object({
+            events: z.array(AcmeEventSchema),
+            total: z.number()
+        })
+    })
+
+    export type RequestParam = z.infer<typeof RequestParamSchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace GetAcmePersistRecordCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid/persist-record`
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({ response: AcmePersistRecordSchema })
+
+    export type RequestParam = z.infer<typeof RequestParamSchema>
+    export type Response = z.infer<typeof ResponseSchema>
+}
+
+export namespace PublishAcmePersistRecordCommand {
+    export const TSQ_url = `${ROOT}/certificates/:uuid/persist-record/publish`
+    export const endpointDetails = { REQUEST_METHOD: 'post' } as const
+
+    export const RequestParamSchema = uuidParam
+    export const ResponseSchema = z.object({ response: AcmePersistRecordSchema })
+
+    export type Response = z.infer<typeof ResponseSchema>
+}
