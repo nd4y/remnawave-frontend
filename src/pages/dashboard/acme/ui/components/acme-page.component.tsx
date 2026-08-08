@@ -1,7 +1,7 @@
 import { Tabs } from '@mantine/core'
 import { GetNodesCommand } from '@remnawave/backend-contract'
-import { AcmeCertificatesTableWidget } from '@widgets/dashboard/acme/certificates-table/certificates-table.widget'
-import { AcmeCredentialsTableWidget } from '@widgets/dashboard/acme/credentials-table/credentials-table.widget'
+import { AcmeCertificatesGridWidget } from '@widgets/dashboard/acme/certificates-grid/certificates-grid.widget'
+import { AcmeCredentialsGridWidget } from '@widgets/dashboard/acme/credentials-grid/credentials-grid.widget'
 import { motion } from 'motion/react'
 import { TbCertificate, TbKey } from 'react-icons/tb'
 import { z } from 'zod'
@@ -29,10 +29,7 @@ export const AcmePageComponent = (props: Props) => {
             >
                 <Tabs defaultValue="certificates" keepMounted={false}>
                     <Tabs.List mb="md">
-                        <Tabs.Tab
-                            leftSection={<TbCertificate size={16} />}
-                            value="certificates"
-                        >
+                        <Tabs.Tab leftSection={<TbCertificate size={16} />} value="certificates">
                             Certificates
                         </Tabs.Tab>
                         <Tabs.Tab leftSection={<TbKey size={16} />} value="credentials">
@@ -41,7 +38,7 @@ export const AcmePageComponent = (props: Props) => {
                     </Tabs.List>
 
                     <Tabs.Panel value="certificates">
-                        <AcmeCertificatesTableWidget
+                        <AcmeCertificatesGridWidget
                             certificates={certificates}
                             credentials={credentials}
                             nodes={nodes}
@@ -49,7 +46,7 @@ export const AcmePageComponent = (props: Props) => {
                     </Tabs.Panel>
 
                     <Tabs.Panel value="credentials">
-                        <AcmeCredentialsTableWidget credentials={credentials} />
+                        <AcmeCredentialsGridWidget credentials={credentials} />
                     </Tabs.Panel>
                 </Tabs>
             </motion.div>

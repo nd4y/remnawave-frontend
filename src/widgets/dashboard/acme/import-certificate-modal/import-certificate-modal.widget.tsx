@@ -20,6 +20,8 @@ import { z } from 'zod'
 import { queryClient } from '@shared/api'
 import { AcmeCertificateSchema } from '@shared/api/contracts/acme.contract'
 import { QueryKeys, useImportAcmeCertificate, useReimportAcmeCertificate } from '@shared/api/hooks'
+import { ModalFooter } from '@shared/ui/modal-footer'
+import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
 
 type Certificate = z.infer<typeof AcmeCertificateSchema>
 
@@ -51,11 +53,8 @@ export const AcmeImportCertificateModalWidget = (props: IProps) => {
         },
         validate: {
             fullchainPem: (value) =>
-                value.includes('-----BEGIN CERTIFICATE-----')
-                    ? null
-                    : 'Expected a PEM certificate',
-            name: (value) =>
-                isReplace || value.trim().length >= 2 ? null : 'Name is too short',
+                value.includes('-----BEGIN CERTIFICATE-----') ? null : 'Expected a PEM certificate',
+            name: (value) => (isReplace || value.trim().length >= 2 ? null : 'Name is too short'),
             privateKeyPem: (value) =>
                 value.includes('-----BEGIN') ? null : 'Expected a PEM private key'
         }
@@ -123,10 +122,21 @@ export const AcmeImportCertificateModalWidget = (props: IProps) => {
 
     return (
         <Modal
+            centered
             onClose={onClose}
             opened={opened}
             size="lg"
-            title={isReplace ? `Replace material of ${certificate.name}` : 'Import certificate'}
+            title={
+                <BaseOverlayHeader
+                    iconColor="grape"
+                    IconComponent={TbFileUpload}
+                    iconVariant="soft"
+                    title={
+                        isReplace ? `Replace material of ${certificate.name}` : 'Import certificate'
+                    }
+                    titleOrder={5}
+                />
+            }
         >
             <form onSubmit={handleSubmit}>
                 <Stack gap="md">
@@ -233,14 +243,20 @@ export const AcmeImportCertificateModalWidget = (props: IProps) => {
                             />
                         </>
                     )}
+                </Stack>
 
+                <ModalFooter>
+                    <Button onClick={onClose} variant="subtle">
+                        Cancel
+                    </Button>
                     <Button
                         loading={importCertificate.isPending || reimportCertificate.isPending}
                         type="submit"
+                        variant="soft"
                     >
                         {isReplace ? 'Replace' : 'Import'}
                     </Button>
-                </Stack>
+                </ModalFooter>
             </form>
         </Modal>
     )

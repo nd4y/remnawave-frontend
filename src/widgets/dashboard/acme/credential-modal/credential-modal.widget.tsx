@@ -1,12 +1,14 @@
-import { Alert, Button, Modal, Select, Stack, TextInput } from '@mantine/core'
+import { Button, Modal, Select, Stack, TextInput } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useEffect } from 'react'
-import { TbInfoCircle } from 'react-icons/tb'
+import { TbKey } from 'react-icons/tb'
+import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
 import { ACME_PROVIDER, AcmeCredentialSchema } from '@shared/api/contracts/acme.contract'
 import { QueryKeys, useCreateAcmeCredential, useUpdateAcmeCredential } from '@shared/api/hooks'
-import { z } from 'zod'
+import { ModalFooter } from '@shared/ui/modal-footer'
+import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
 
 type Credential = z.infer<typeof AcmeCredentialSchema>
 
@@ -16,20 +18,12 @@ interface IProps {
     opened: boolean
 }
 
+// Every provider is configured the same way: pick a type, fill its fields.
 const PROVIDER_OPTIONS = [
     { label: 'ACME Proxy', value: ACME_PROVIDER.ACME_PROXY },
     { label: 'Cloudflare', value: ACME_PROVIDER.CLOUDFLARE },
     { label: 'Manual', value: ACME_PROVIDER.MANUAL }
 ]
-
-const PROVIDER_HINTS: Record<string, string> = {
-    [ACME_PROVIDER.ACME_PROXY]:
-        'The proxy holds the DNS provider credentials and the domain policy. The panel keeps only this client token.',
-    [ACME_PROVIDER.CLOUDFLARE]:
-        'The token is stored in the panel and can edit every record in its zones. Convenient, but it puts a zone-wide credential in an internet-facing service.',
-    [ACME_PROVIDER.MANUAL]:
-        'Nothing is published automatically. Pairs with dns-persist-01, where one record is added by hand and renewals need no DNS access; it cannot answer dns-01.'
-}
 
 export const AcmeCredentialModalWidget = (props: IProps) => {
     const { credential, onClose, opened } = props
@@ -44,16 +38,16 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
             apiToken: '',
             baseUrl: '',
             name: '',
-            provider: ACME_PROVIDER.ACME_PROXY as string,
+            provider: ACME_PROVIDER.CLOUDFLARE as string,
             token: ''
         },
         validate: {
             baseUrl: (value, values) =>
-                values.provider === ACME_PROVIDER.ACME_PROXY && !value ? 'Base URL is required' : null,
+                values.provider === ACME_PROVIDER.ACME_PROXY && !value ? 'URL is required' : null,
             name: (value) => (value.trim().length < 2 ? 'Name is too short' : null),
             token: (value, values) =>
                 values.provider === ACME_PROVIDER.ACME_PROXY && !isEdit && !value
-                    ? 'Client token is required'
+                    ? 'Token is required'
                     : null
         }
     })
@@ -67,7 +61,7 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
             apiToken: '',
             baseUrl: credential?.baseUrl ?? '',
             name: credential?.name ?? '',
-            provider: credential?.provider ?? ACME_PROVIDER.ACME_PROXY,
+            provider: credential?.provider ?? ACME_PROVIDER.CLOUDFLARE,
             token: ''
         })
         form.resetDirty()
@@ -112,36 +106,45 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
     const provider = form.values.provider
 
     return (
-        <Modal onClose={onClose} opened={opened} title={isEdit ? 'Edit credential' : 'New credential'}>
+        <Modal
+            centered
+            onClose={onClose}
+            opened={opened}
+            title={
+                <BaseOverlayHeader
+                    iconColor="teal"
+                    IconComponent={TbKey}
+                    iconVariant="soft"
+                    title={isEdit ? 'Edit credential' : 'New credential'}
+                    titleOrder={5}
+                />
+            }
+        >
             <form onSubmit={handleSubmit}>
                 <Stack gap="md">
                     <TextInput
                         label="Name"
-                        placeholder="edge-proxy"
+                        placeholder="my-dns-credential"
                         required
                         {...form.getInputProps('name')}
                     />
 
                     <Select
                         data={PROVIDER_OPTIONS}
-                        disabled={isEdit}
                         description={
                             isEdit
                                 ? 'The provider cannot be changed: the stored secret belongs to it. Create another credential instead.'
                                 : undefined
                         }
+                        disabled={isEdit}
                         label="Provider"
                         {...form.getInputProps('provider')}
                     />
 
-                    <Alert color="gray" icon={<TbInfoCircle size={18} />} variant="light">
-                        {PROVIDER_HINTS[provider]}
-                    </Alert>
-
                     {provider === ACME_PROVIDER.ACME_PROXY && (
                         <>
                             <TextInput
-                                label="Base URL"
+                                label="URL"
                                 placeholder="http://acme-proxy:8080"
                                 required
                                 {...form.getInputProps('baseUrl')}
@@ -150,8 +153,8 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
                                 description={
                                     isEdit ? 'Leave empty to keep the stored token' : undefined
                                 }
-                                label="Client token"
-                                placeholder={isEdit ? '••••••••' : 'token issued by the proxy'}
+                                label="Token"
+                                placeholder={isEdit ? '••••••••' : 'Client token'}
                                 {...form.getInputProps('token')}
                             />
                         </>
@@ -169,14 +172,20 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
                             {...form.getInputProps('apiToken')}
                         />
                     )}
+                </Stack>
 
+                <ModalFooter>
+                    <Button onClick={onClose} variant="subtle">
+                        Cancel
+                    </Button>
                     <Button
                         loading={createCredential.isPending || updateCredential.isPending}
                         type="submit"
+                        variant="soft"
                     >
                         {isEdit ? 'Save' : 'Create'}
                     </Button>
-                </Stack>
+                </ModalFooter>
             </form>
         </Modal>
     )

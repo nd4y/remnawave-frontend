@@ -13,7 +13,7 @@ import {
     Text,
     Timeline
 } from '@mantine/core'
-import { TbAlertTriangle, TbCheck, TbCopy, TbUpload } from 'react-icons/tb'
+import { TbAlertTriangle, TbCertificate, TbCheck, TbCopy, TbUpload } from 'react-icons/tb'
 import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
@@ -24,6 +24,7 @@ import {
     useGetAcmePersistRecord,
     usePublishAcmePersistRecord
 } from '@shared/api/hooks'
+import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
 
 type Certificate = z.infer<typeof AcmeCertificateSchema>
 
@@ -66,7 +67,16 @@ export const AcmeCertificateDetailsDrawerWidget = ({ certificate, onClose }: IPr
             opened={Boolean(certificate)}
             position="right"
             size="lg"
-            title={certificate?.name ?? ''}
+            title={
+                <BaseOverlayHeader
+                    iconColor="teal"
+                    IconComponent={TbCertificate}
+                    iconVariant="soft"
+                    subtitle={certificate?.domains.join(', ')}
+                    title={certificate?.name ?? ''}
+                    titleOrder={5}
+                />
+            }
         >
             <Stack gap="lg">
                 {certificate?.lastError && (

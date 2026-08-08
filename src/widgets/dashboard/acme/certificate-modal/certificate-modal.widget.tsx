@@ -17,7 +17,7 @@ import {
 import { useForm } from '@mantine/form'
 import { GetNodesCommand } from '@remnawave/backend-contract'
 import { useEffect } from 'react'
-import { TbAlertTriangle, TbInfoCircle } from 'react-icons/tb'
+import { TbAlertTriangle, TbCertificate, TbInfoCircle } from 'react-icons/tb'
 import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
@@ -31,9 +31,17 @@ import {
     AcmeCredentialSchema
 } from '@shared/api/contracts/acme.contract'
 import { QueryKeys, useCreateAcmeCertificate, useUpdateAcmeCertificate } from '@shared/api/hooks'
+import { ModalFooter } from '@shared/ui/modal-footer'
+import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
 
 type Certificate = z.infer<typeof AcmeCertificateSchema>
 type Credential = z.infer<typeof AcmeCredentialSchema>
+
+const PROVIDER_LABELS: Record<string, string> = {
+    [ACME_PROVIDER.ACME_PROXY]: 'ACME Proxy',
+    [ACME_PROVIDER.CLOUDFLARE]: 'Cloudflare',
+    [ACME_PROVIDER.MANUAL]: 'Manual'
+}
 
 interface IProps {
     certificate: Certificate | null
@@ -166,10 +174,19 @@ export const AcmeCertificateModalWidget = (props: IProps) => {
 
     return (
         <Modal
+            centered
             onClose={onClose}
             opened={opened}
             size="lg"
-            title={isEdit ? 'Edit certificate' : 'New certificate'}
+            title={
+                <BaseOverlayHeader
+                    iconColor="teal"
+                    IconComponent={TbCertificate}
+                    iconVariant="soft"
+                    title={isEdit ? 'Edit certificate' : 'New certificate'}
+                    titleOrder={5}
+                />
+            }
         >
             <form onSubmit={handleSubmit}>
                 <Stack gap="md">
@@ -210,7 +227,7 @@ export const AcmeCertificateModalWidget = (props: IProps) => {
 
                             <Select
                                 data={credentials.map((credential) => ({
-                                    label: `${credential.name} (${credential.provider})`,
+                                    label: `${credential.name} (${PROVIDER_LABELS[credential.provider] ?? credential.provider})`,
                                     value: credential.uuid
                                 }))}
                                 label="Credential"
@@ -320,14 +337,20 @@ export const AcmeCertificateModalWidget = (props: IProps) => {
                         label="Enabled"
                         {...form.getInputProps('isEnabled', { type: 'checkbox' })}
                     />
+                </Stack>
 
+                <ModalFooter>
+                    <Button onClick={onClose} variant="subtle">
+                        Cancel
+                    </Button>
                     <Button
                         loading={createCertificate.isPending || updateCertificate.isPending}
                         type="submit"
+                        variant="soft"
                     >
                         {isEdit ? 'Save' : 'Create'}
                     </Button>
-                </Stack>
+                </ModalFooter>
             </form>
         </Modal>
     )
