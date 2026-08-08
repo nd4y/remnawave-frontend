@@ -1,15 +1,13 @@
 name: Build fork UI
 
-# Manual only. The inherited upstream workflows fire on every tag and target
-# repositories this fork cannot push to, so this one is kept off the tag trigger
-# and is run deliberately.
+# Fork tags only. workflow_dispatch would need this file on the default branch,
+# and main is kept identical to upstream so it can be fast-forwarded. The
+# inherited upstream workflows, which fire on every tag and push to repositories
+# this fork cannot write to, are disabled in the repository settings.
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag to create or update (e.g. v3.2.1-acme.1)'
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*-acme*'
 
 permissions:
   contents: write
@@ -45,11 +43,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "${{ inputs.tag }}" >/dev/null 2>&1; then
-            gh release upload "${{ inputs.tag }}" remnawave-frontend.zip --clobber
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" remnawave-frontend.zip --clobber
           else
-            gh release create "${{ inputs.tag }}" remnawave-frontend.zip \
-              --target "${{ github.ref_name }}" \
-              --title "${{ inputs.tag }}" \
-              --notes "UI build of ${{ github.ref_name }} at ${{ github.sha }}."
+            gh release create "$TAG" remnawave-frontend.zip \
+              --title "$TAG" \
+              --notes "UI build of $TAG at ${{ github.sha }}."
           fi
