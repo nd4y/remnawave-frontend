@@ -183,41 +183,41 @@ export const AcmeCertificatesGridWidget = (props: IProps) => {
                 </EntityCardShared.Header>
 
                 <EntityCardShared.Actions>
-                    {isImported ? (
-                        <EntityCardShared.Button
-                            leftSection={<TbFileUpload size={16} />}
-                            onClick={() => {
-                                setReplacing(certificate)
-                                setIsImportOpen(true)
-                            }}
-                        >
-                            Upload
-                        </EntityCardShared.Button>
-                    ) : (
-                        <EntityCardShared.Button
-                            leftSection={<TbRefresh size={16} />}
-                            onClick={() => handleIssue(certificate)}
-                        >
-                            Issue now
-                        </EntityCardShared.Button>
-                    )}
+                    <EntityCardShared.Button
+                        leftSection={<PiPencil size={16} />}
+                        onClick={() => {
+                            setEditing(certificate)
+                            setIsModalOpen(true)
+                        }}
+                    >
+                        Edit
+                    </EntityCardShared.Button>
 
                     <EntityCardShared.Menu>
+                        {isImported ? (
+                            <Menu.Item
+                                leftSection={<TbFileUpload size={18} />}
+                                onClick={() => {
+                                    setReplacing(certificate)
+                                    setIsImportOpen(true)
+                                }}
+                            >
+                                Upload new material
+                            </Menu.Item>
+                        ) : (
+                            <Menu.Item
+                                leftSection={<TbRefresh size={18} />}
+                                onClick={() => handleIssue(certificate)}
+                            >
+                                Issue now
+                            </Menu.Item>
+                        )}
+
                         <Menu.Item
                             leftSection={<TbListDetails size={18} />}
                             onClick={() => setDetails(certificate)}
                         >
                             Details
-                        </Menu.Item>
-
-                        <Menu.Item
-                            leftSection={<PiPencil size={18} />}
-                            onClick={() => {
-                                setEditing(certificate)
-                                setIsModalOpen(true)
-                            }}
-                        >
-                            Edit
                         </Menu.Item>
 
                         <Menu.Item

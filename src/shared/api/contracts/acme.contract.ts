@@ -13,12 +13,190 @@ import { z } from 'zod'
 const ROOT = '/api/acme'
 
 export const ACME_PROVIDER = {
-    ACME_PROXY: 'ACME_PROXY',
     CLOUDFLARE: 'CLOUDFLARE',
-    MANUAL: 'MANUAL'
+    CUSTOM: 'CUSTOM',
+    DESEC: 'DESEC',
+    DIGITALOCEAN: 'DIGITALOCEAN',
+    GANDI: 'GANDI',
+    HETZNER: 'HETZNER',
+    MANUAL: 'MANUAL',
+    PORKBUN: 'PORKBUN',
+    POWERDNS: 'POWERDNS',
+    VULTR: 'VULTR'
 } as const
 
 export type TAcmeProvider = (typeof ACME_PROVIDER)[keyof typeof ACME_PROVIDER]
+
+export const ACME_PROVIDER_VALUES = Object.values(ACME_PROVIDER) as [
+    TAcmeProvider,
+    ...TAcmeProvider[]
+]
+
+export interface IAcmeProviderField {
+    description?: string
+    key: string
+    label: string
+    placeholder?: string
+    required: boolean
+    secret: boolean
+}
+
+export interface IAcmeProviderInfo {
+    description?: string
+    fields: IAcmeProviderField[]
+    label: string
+    provider: TAcmeProvider
+}
+
+/** Mirrors ACME_PROVIDER_REGISTRY in the backend fork - keep in sync. */
+export const ACME_PROVIDER_REGISTRY: IAcmeProviderInfo[] = [
+    {
+        fields: [
+            {
+                description: 'Needs Zone:Read and DNS:Edit',
+                key: 'apiToken',
+                label: 'API token',
+                placeholder: 'Cloudflare API token',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Cloudflare',
+        provider: ACME_PROVIDER.CLOUDFLARE
+    },
+    {
+        fields: [
+            {
+                key: 'apiToken',
+                label: 'API token',
+                placeholder: 'deSEC token',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'deSEC',
+        provider: ACME_PROVIDER.DESEC
+    },
+    {
+        fields: [
+            {
+                description: 'Needs domain read and write',
+                key: 'apiToken',
+                label: 'API token',
+                placeholder: 'DigitalOcean personal access token',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'DigitalOcean',
+        provider: ACME_PROVIDER.DIGITALOCEAN
+    },
+    {
+        fields: [
+            {
+                description: 'Needs "Manage domain name technical configurations"',
+                key: 'apiToken',
+                label: 'Personal access token',
+                placeholder: 'Gandi PAT',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Gandi LiveDNS',
+        provider: ACME_PROVIDER.GANDI
+    },
+    {
+        fields: [
+            {
+                key: 'apiToken',
+                label: 'API token',
+                placeholder: 'dns.hetzner.com API token',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Hetzner DNS',
+        provider: ACME_PROVIDER.HETZNER
+    },
+    {
+        fields: [
+            { key: 'apiKey', label: 'API key', placeholder: 'pk1_…', required: true, secret: true },
+            {
+                key: 'secretApiKey',
+                label: 'Secret API key',
+                placeholder: 'sk1_…',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Porkbun',
+        provider: ACME_PROVIDER.PORKBUN
+    },
+    {
+        fields: [
+            {
+                key: 'baseUrl',
+                label: 'API URL',
+                placeholder: 'http://powerdns:8081',
+                required: true,
+                secret: false
+            },
+            { key: 'apiKey', label: 'API key', required: true, secret: true },
+            {
+                description: 'Leave empty for the default server',
+                key: 'serverId',
+                label: 'Server ID',
+                placeholder: 'localhost',
+                required: false,
+                secret: false
+            }
+        ],
+        label: 'PowerDNS',
+        provider: ACME_PROVIDER.POWERDNS
+    },
+    {
+        fields: [
+            {
+                key: 'apiToken',
+                label: 'API key',
+                placeholder: 'Vultr API key',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Vultr',
+        provider: ACME_PROVIDER.VULTR
+    },
+    {
+        description:
+            'A DNS broker speaking the simple HTTP protocol from the documentation. Keeps the real DNS credential outside the panel.',
+        fields: [
+            {
+                key: 'baseUrl',
+                label: 'URL',
+                placeholder: 'http://dns-broker:8080',
+                required: true,
+                secret: false
+            },
+            {
+                key: 'token',
+                label: 'Token',
+                placeholder: 'Client token',
+                required: true,
+                secret: true
+            }
+        ],
+        label: 'Custom (HTTP API)',
+        provider: ACME_PROVIDER.CUSTOM
+    },
+    {
+        description:
+            'Nothing is published automatically. Pairs with dns-persist-01, where one record is added by hand; it cannot answer dns-01.',
+        fields: [],
+        label: 'Manual',
+        provider: ACME_PROVIDER.MANUAL
+    }
+]
 
 export const ACME_CHALLENGE_TYPE = {
     DNS_01: 'DNS_01',
@@ -68,7 +246,11 @@ export const ACME_DIRECTORY_PRESETS = [
     { isStaging: false, name: "Let's Encrypt", url: ACME_DIRECTORY.LETSENCRYPT },
     { isStaging: true, name: 'Buypass Go (staging)', url: ACME_DIRECTORY.BUYPASS_STAGING },
     { isStaging: false, name: 'Buypass Go', url: ACME_DIRECTORY.BUYPASS },
-    { isStaging: true, name: 'Google Trust Services (staging)', url: ACME_DIRECTORY.GOOGLE_STAGING },
+    {
+        isStaging: true,
+        name: 'Google Trust Services (staging)',
+        url: ACME_DIRECTORY.GOOGLE_STAGING
+    },
     { isStaging: false, name: 'Google Trust Services', url: ACME_DIRECTORY.GOOGLE },
     { isStaging: false, name: 'ZeroSSL', url: ACME_DIRECTORY.ZEROSSL }
 ] as const
@@ -76,12 +258,12 @@ export const ACME_DIRECTORY_PRESETS = [
 const dateFromString = z.iso.datetime().transform((value) => new Date(value))
 
 export const AcmeCredentialSchema = z.object({
-    baseUrl: z.nullable(z.string()),
     certificatesCount: z.number().int(),
+    config: z.record(z.string(), z.string()),
     createdAt: dateFromString,
     hasSecret: z.boolean(),
     name: z.string(),
-    provider: z.enum([ACME_PROVIDER.ACME_PROXY, ACME_PROVIDER.CLOUDFLARE, ACME_PROVIDER.MANUAL]),
+    provider: z.enum(ACME_PROVIDER_VALUES),
     updatedAt: dateFromString,
     uuid: z.uuid()
 })
@@ -166,15 +348,9 @@ export namespace CreateAcmeCredentialCommand {
     export const endpointDetails = { REQUEST_METHOD: 'post' } as const
 
     export const RequestBodySchema = z.object({
-        apiToken: z.optional(z.string().min(1)),
-        baseUrl: z.optional(z.url()),
+        config: z.optional(z.record(z.string(), z.string())),
         name: z.string().min(2).max(40),
-        provider: z.enum([
-            ACME_PROVIDER.ACME_PROXY,
-            ACME_PROVIDER.CLOUDFLARE,
-            ACME_PROVIDER.MANUAL
-        ]),
-        token: z.optional(z.string().min(1))
+        provider: z.enum(ACME_PROVIDER_VALUES)
     })
 
     export const ResponseSchema = z.object({ response: AcmeCredentialSchema })
@@ -188,10 +364,8 @@ export namespace UpdateAcmeCredentialCommand {
     export const endpointDetails = { REQUEST_METHOD: 'patch' } as const
 
     export const RequestBodySchema = z.object({
-        apiToken: z.optional(z.string().min(1)),
-        baseUrl: z.optional(z.url()),
+        config: z.optional(z.record(z.string(), z.string())),
         name: z.optional(z.string().min(2).max(40)),
-        token: z.optional(z.string().min(1)),
         uuid: z.uuid()
     })
 
@@ -274,11 +448,10 @@ export namespace UpdateAcmeCertificateCommand {
     export const TSQ_url = `${ROOT}/certificates`
     export const endpointDetails = { REQUEST_METHOD: 'patch' } as const
 
-    export const RequestBodySchema = CreateAcmeCertificateCommand.RequestBodySchema.partial().extend(
-        {
+    export const RequestBodySchema =
+        CreateAcmeCertificateCommand.RequestBodySchema.partial().extend({
             uuid: z.uuid()
-        }
-    )
+        })
 
     export const ResponseSchema = z.object({ response: AcmeCertificateSchema })
 

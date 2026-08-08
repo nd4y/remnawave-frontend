@@ -7,7 +7,7 @@ import { TbCertificate, TbKey, TbPlugConnected, TbPlus } from 'react-icons/tb'
 import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
-import { ACME_PROVIDER, AcmeCredentialSchema } from '@shared/api/contracts/acme.contract'
+import { ACME_PROVIDER_REGISTRY, AcmeCredentialSchema } from '@shared/api/contracts/acme.contract'
 import { QueryKeys, useDeleteAcmeCredential, useTestAcmeCredential } from '@shared/api/hooks'
 import { EntityCardShared } from '@shared/ui/entity-card'
 import { VirtualizedDndGrid } from '@shared/ui/virtualized-dnd-grid'
@@ -16,11 +16,9 @@ import { AcmeCredentialModalWidget } from '../credential-modal/credential-modal.
 
 type Credential = z.infer<typeof AcmeCredentialSchema>
 
-const PROVIDER_LABELS: Record<string, string> = {
-    [ACME_PROVIDER.ACME_PROXY]: 'ACME Proxy',
-    [ACME_PROVIDER.CLOUDFLARE]: 'Cloudflare',
-    [ACME_PROVIDER.MANUAL]: 'Manual'
-}
+const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
+    ACME_PROVIDER_REGISTRY.map((info) => [info.provider, info.label])
+)
 
 interface IProps {
     credentials: Credential[]
@@ -80,7 +78,7 @@ export const AcmeCredentialsGridWidget = ({ credentials }: IProps) => {
                 </EntityCardShared.Icon>
 
                 <EntityCardShared.Content
-                    subtitle={credential.baseUrl ?? undefined}
+                    subtitle={credential.config.baseUrl}
                     title={credential.name}
                 >
                     <Group gap="xs" wrap="wrap">

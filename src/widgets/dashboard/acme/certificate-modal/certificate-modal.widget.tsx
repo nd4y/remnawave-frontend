@@ -27,6 +27,7 @@ import {
     ACME_DIRECTORY_PRESETS,
     ACME_KEY_TYPES,
     ACME_PROVIDER,
+    ACME_PROVIDER_REGISTRY,
     AcmeCertificateSchema,
     AcmeCredentialSchema
 } from '@shared/api/contracts/acme.contract'
@@ -37,11 +38,9 @@ import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
 type Certificate = z.infer<typeof AcmeCertificateSchema>
 type Credential = z.infer<typeof AcmeCredentialSchema>
 
-const PROVIDER_LABELS: Record<string, string> = {
-    [ACME_PROVIDER.ACME_PROXY]: 'ACME Proxy',
-    [ACME_PROVIDER.CLOUDFLARE]: 'Cloudflare',
-    [ACME_PROVIDER.MANUAL]: 'Manual'
-}
+const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
+    ACME_PROVIDER_REGISTRY.map((info) => [info.provider, info.label])
+)
 
 interface IProps {
     certificate: Certificate | null

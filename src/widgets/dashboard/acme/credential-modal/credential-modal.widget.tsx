@@ -1,11 +1,15 @@
-import { Button, Modal, Select, Stack, TextInput } from '@mantine/core'
+import { Button, Modal, Select, Stack, Text, TextInput } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useEffect } from 'react'
 import { TbKey } from 'react-icons/tb'
 import { z } from 'zod'
 
 import { queryClient } from '@shared/api'
-import { ACME_PROVIDER, AcmeCredentialSchema } from '@shared/api/contracts/acme.contract'
+import {
+    ACME_PROVIDER,
+    ACME_PROVIDER_REGISTRY,
+    AcmeCredentialSchema
+} from '@shared/api/contracts/acme.contract'
 import { QueryKeys, useCreateAcmeCredential, useUpdateAcmeCredential } from '@shared/api/hooks'
 import { ModalFooter } from '@shared/ui/modal-footer'
 import { BaseOverlayHeader } from '@shared/ui/overlays/base-overlay-header'
@@ -18,12 +22,10 @@ interface IProps {
     opened: boolean
 }
 
-// Every provider is configured the same way: pick a type, fill its fields.
-const PROVIDER_OPTIONS = [
-    { label: 'ACME Proxy', value: ACME_PROVIDER.ACME_PROXY },
-    { label: 'Cloudflare', value: ACME_PROVIDER.CLOUDFLARE },
-    { label: 'Manual', value: ACME_PROVIDER.MANUAL }
-]
+const PROVIDER_OPTIONS = ACME_PROVIDER_REGISTRY.map((info) => ({
+    label: info.label,
+    value: info.provider as string
+}))
 
 export const AcmeCredentialModalWidget = (props: IProps) => {
     const { credential, onClose, opened } = props
@@ -35,20 +37,26 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
 
     const form = useForm({
         initialValues: {
-            apiToken: '',
-            baseUrl: '',
+            config: {} as Record<string, string>,
             name: '',
-            provider: ACME_PROVIDER.CLOUDFLARE as string,
-            token: ''
+            provider: ACME_PROVIDER.CLOUDFLARE as string
         },
         validate: {
-            baseUrl: (value, values) =>
-                values.provider === ACME_PROVIDER.ACME_PROXY && !value ? 'URL is required' : null,
-            name: (value) => (value.trim().length < 2 ? 'Name is too short' : null),
-            token: (value, values) =>
-                values.provider === ACME_PROVIDER.ACME_PROXY && !isEdit && !value
-                    ? 'Token is required'
-                    : null
+            config: (value, values) => {
+                const info = ACME_PROVIDER_REGISTRY.find(
+                    (entry) => entry.provider === values.provider
+                )
+
+                for (const field of info?.fields ?? []) {
+                    // On edit an empty secret means "keep what is stored".
+                    if (field.required && !value[field.key] && !(isEdit && field.secret)) {
+                        return `${field.label} is required`
+                    }
+                }
+
+                return null
+            },
+            name: (value) => (value.trim().length < 2 ? 'Name is too short' : null)
         }
     })
 
@@ -58,11 +66,9 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
         }
 
         form.setValues({
-            apiToken: '',
-            baseUrl: credential?.baseUrl ?? '',
+            config: { ...credential?.config },
             name: credential?.name ?? '',
-            provider: credential?.provider ?? ACME_PROVIDER.CLOUDFLARE,
-            token: ''
+            provider: credential?.provider ?? ACME_PROVIDER.CLOUDFLARE
         })
         form.resetDirty()
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,29 +79,18 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
     }
 
     const handleSubmit = form.onSubmit(async (values) => {
+        // Empty values are dropped: for secrets on edit that means "keep stored".
+        const config = Object.fromEntries(
+            Object.entries(values.config).filter(([, value]) => value !== '')
+        )
+
         if (isEdit) {
-            // Secrets are write-only: an empty field means "leave what is stored".
             await updateCredential.mutateAsync({
-                variables: {
-                    ...(values.apiToken ? { apiToken: values.apiToken } : {}),
-                    ...(values.baseUrl ? { baseUrl: values.baseUrl } : {}),
-                    ...(values.token ? { token: values.token } : {}),
-                    name: values.name,
-                    uuid: credential.uuid
-                }
+                variables: { config, name: values.name, uuid: credential.uuid }
             })
         } else {
             await createCredential.mutateAsync({
-                variables: {
-                    ...(values.provider === ACME_PROVIDER.ACME_PROXY
-                        ? { baseUrl: values.baseUrl, token: values.token }
-                        : {}),
-                    ...(values.provider === ACME_PROVIDER.CLOUDFLARE
-                        ? { apiToken: values.apiToken }
-                        : {}),
-                    name: values.name,
-                    provider: values.provider as never
-                }
+                variables: { config, name: values.name, provider: values.provider as never }
             })
         }
 
@@ -103,7 +98,9 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
         onClose()
     })
 
-    const provider = form.values.provider
+    const providerInfo = ACME_PROVIDER_REGISTRY.find(
+        (entry) => entry.provider === form.values.provider
+    )
 
     return (
         <Modal
@@ -138,39 +135,37 @@ export const AcmeCredentialModalWidget = (props: IProps) => {
                         }
                         disabled={isEdit}
                         label="Provider"
+                        searchable
                         {...form.getInputProps('provider')}
                     />
 
-                    {provider === ACME_PROVIDER.ACME_PROXY && (
-                        <>
-                            <TextInput
-                                label="URL"
-                                placeholder="http://acme-proxy:8080"
-                                required
-                                {...form.getInputProps('baseUrl')}
-                            />
-                            <TextInput
-                                description={
-                                    isEdit ? 'Leave empty to keep the stored token' : undefined
-                                }
-                                label="Token"
-                                placeholder={isEdit ? '••••••••' : 'Client token'}
-                                {...form.getInputProps('token')}
-                            />
-                        </>
+                    {providerInfo?.description && (
+                        <Text c="dimmed" size="xs">
+                            {providerInfo.description}
+                        </Text>
                     )}
 
-                    {provider === ACME_PROVIDER.CLOUDFLARE && (
+                    {providerInfo?.fields.map((field) => (
                         <TextInput
                             description={
-                                isEdit
-                                    ? 'Leave empty to keep the stored token'
-                                    : 'Needs Zone:Read and DNS:Edit'
+                                isEdit && field.secret
+                                    ? 'Leave empty to keep the stored value'
+                                    : field.description
                             }
-                            label="API token"
-                            placeholder={isEdit ? '••••••••' : 'Cloudflare API token'}
-                            {...form.getInputProps('apiToken')}
+                            key={`${providerInfo.provider}-${field.key}`}
+                            label={field.label}
+                            placeholder={
+                                isEdit && field.secret ? '••••••••' : (field.placeholder ?? '')
+                            }
+                            required={field.required && !(isEdit && field.secret)}
+                            {...form.getInputProps(`config.${field.key}`)}
                         />
+                    ))}
+
+                    {form.errors.config && (
+                        <Text c="red" size="xs">
+                            {form.errors.config}
+                        </Text>
                     )}
                 </Stack>
 
