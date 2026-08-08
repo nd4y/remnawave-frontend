@@ -1,0 +1,55 @@
+name: Build fork UI
+
+# Manual only. The inherited upstream workflows fire on every tag and target
+# repositories this fork cannot push to, so this one is kept off the tag trigger
+# and is run deliberately.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create or update (e.g. v3.2.1-acme.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+
+      - run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build
+        run: npm run cb
+
+      # The backend image unzips this and expects dist/ at the archive root.
+      - name: Package
+        run: |
+          zip -qr remnawave-frontend.zip dist
+          unzip -l remnawave-frontend.zip | grep -qE ' dist/index\.html$' \
+            || { echo 'dist/index.html is not at the zip root'; exit 1; }
+          ls -lh remnawave-frontend.zip
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ inputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ inputs.tag }}" remnawave-frontend.zip --clobber
+          else
+            gh release create "${{ inputs.tag }}" remnawave-frontend.zip \
+              --target "${{ github.ref_name }}" \
+              --title "${{ inputs.tag }}" \
+              --notes "UI build of ${{ github.ref_name }} at ${{ github.sha }}."
+          fi
