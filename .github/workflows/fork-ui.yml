@@ -1,0 +1,53 @@
+name: Build fork UI
+
+# Fork tags only. workflow_dispatch would need this file on the default branch,
+# and main is kept identical to upstream so it can be fast-forwarded. The
+# inherited upstream workflows, which fire on every tag and push to repositories
+# this fork cannot write to, are disabled in the repository settings.
+on:
+  push:
+    tags:
+      - 'v*-acme*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+
+      - run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Build
+        run: npm run cb
+
+      # The backend image unzips this and expects dist/ at the archive root.
+      - name: Package
+        run: |
+          zip -qr remnawave-frontend.zip dist
+          unzip -l remnawave-frontend.zip | grep -qE ' dist/index\.html$' \
+            || { echo 'dist/index.html is not at the zip root'; exit 1; }
+          ls -lh remnawave-frontend.zip
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" remnawave-frontend.zip --clobber
+          else
+            gh release create "$TAG" remnawave-frontend.zip \
+              --title "$TAG" \
+              --notes "UI build of $TAG at ${{ github.sha }}."
+          fi
