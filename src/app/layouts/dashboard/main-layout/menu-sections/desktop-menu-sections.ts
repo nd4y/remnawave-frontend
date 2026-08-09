@@ -86,7 +86,7 @@ export const useDesktopMenuSections = (): MenuItem[] => {
                     id: 'node-plugins'
                 },
                 {
-                    name: 'Certificates',
+                    name: t('constants.certificates'),
                     href: ROUTES.DASHBOARD.MANAGEMENT.ACME,
                     icon: TbCertificate,
                     id: 'acme-certificates'
