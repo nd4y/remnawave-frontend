@@ -1,8 +1,9 @@
 import { Tabs } from '@mantine/core'
 import { GetNodesCommand } from '@remnawave/backend-contract'
-import { AcmeCertificatesGridWidget } from '@widgets/dashboard/acme/certificates-grid/certificates-grid.widget'
+import { AcmeCertificatesListWidget } from '@widgets/dashboard/acme/certificates-list/certificates-list.widget'
 import { AcmeCredentialsGridWidget } from '@widgets/dashboard/acme/credentials-grid/credentials-grid.widget'
 import { motion } from 'motion/react'
+import { useTranslation } from 'react-i18next'
 import { TbCertificate, TbKey } from 'react-icons/tb'
 import { z } from 'zod'
 
@@ -18,9 +19,14 @@ interface Props {
 export const AcmePageComponent = (props: Props) => {
     const { certificates, credentials, nodes } = props
 
+    const { t } = useTranslation()
+
     return (
-        <Page title="Certificates">
-            <PageHeaderShared icon={<TbCertificate size={24} />} title="Certificates" />
+        <Page title={t('constants.certificates')}>
+            <PageHeaderShared
+                icon={<TbCertificate size={24} />}
+                title={t('constants.certificates')}
+            />
 
             <motion.div
                 animate={{ opacity: 1 }}
@@ -38,7 +44,7 @@ export const AcmePageComponent = (props: Props) => {
                     </Tabs.List>
 
                     <Tabs.Panel value="certificates">
-                        <AcmeCertificatesGridWidget
+                        <AcmeCertificatesListWidget
                             certificates={certificates}
                             credentials={credentials}
                             nodes={nodes}
