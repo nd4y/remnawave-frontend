@@ -197,7 +197,7 @@ export const AcmeCertificateCardWidget = memo((props: IProps) => {
             <Flex direction="column" gap={4}>
                 <Flex align="center" justify="space-between">
                     <Text c="dimmed" ff="monospace" fw={600} size="sm" truncate>
-                        {left > 0 ? `${left} d left` : 'expired'}
+                        {left > 0 ? `${left} d left` : left === 0 ? 'expires today' : 'expired'}
                     </Text>
                     <Text c="dimmed" size="xs" truncate>
                         {certificate.expiresAt
